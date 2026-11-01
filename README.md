@@ -1,275 +1,196 @@
 # Deadlock Hero Performance Analytics Dashboard
 
-A Python-powered analytics dashboard exploring hero performance, gameplay statistics, and game balance in Valve's *Deadlock*.
+**An end-to-end Python analytics project examining hero performance, gameplay statistics and game balance in Valve's *Deadlock*.**
 
-This project demonstrates an end-to-end data analytics workflow, from collecting API data and validating records to calculating performance metrics, conducting exploratory analysis, and developing an interactive dashboard.
+[**Live Streamlit dashboard**](https://deadlock-hero-analytics-np.streamlit.app/) · **Deployment undergoing verification** (the new Cloud deployment was still starting when this README was prepared)
 
-## Project Overview
+This portfolio project combines REST API ingestion, data validation, feature engineering, exploratory analysis, automated tests, scheduled GitHub Actions updates and an interactive Streamlit dashboard.
 
-The Deadlock Hero Performance Analytics Dashboard is a portfolio project designed to investigate differences in hero performance using publicly accessible aggregated gameplay statistics.
+> **Repository visibility:** This repository is currently private. The dashboard URL is separate from repository access.
 
-The project combines data engineering, exploratory data analysis, automated testing, and interactive data visualisation to make hero-level statistics easier to explore and interpret.
+## Project overview
 
-### Research Questions
+The dashboard makes aggregated hero-level statistics easier to explore and compare. It addresses five questions:
 
-1. Which Deadlock heroes have the highest and lowest win rates?
-2. Is there a relationship between hero popularity and win rate?
-3. Do heroes with higher average kills also achieve higher win rates?
-4. How do average deaths, assists, and player damage relate to performance?
-5. How can an interactive dashboard support comparisons between heroes?
+1. Which heroes have the highest and lowest recorded win rates?
+2. How is recorded hero match volume associated with win rate?
+3. Is average kill count associated with higher hero win rates?
+4. How do average deaths, assists and player damage relate to win rate?
+5. How can interactive visualisations help users compare hero performance?
 
-## Technology Stack
+## Dashboard features
 
-| Technology | Purpose |
-|---|---|
-| Python 3.12 | Core programming language |
-| Pandas | Data cleaning, transformation, and analysis |
-| Requests | Retrieving data from REST APIs |
-| Plotly | Interactive data visualisations |
-| Streamlit | Interactive web dashboard |
-| pytest | Automated data validation tests |
-| Git and GitHub | Version control and project documentation |
-| VS Code | Development environment |
+- **Performance overview:** hero count, mean hero win rate and win-rate range.
+- **Hero rankings:** sortable table of matches, wins, losses and combat averages.
+- **Individual hero analysis:** select a hero to inspect its performance metrics.
+- **Top 10 win rates:** interactive horizontal bar chart.
+- **Correlation explorer:** compare win rate against match volume, kills, deaths, assists or damage, with Pearson's *r*.
+- **Interactive filters:** set minimum win rate and match count, then download filtered results as CSV.
+- **Deadlock-inspired design:** charcoal background, rust-red accents and ivory text.
+- **Data refresh:** a six-hour scheduled GitHub Actions pipeline and a separate six-hour Streamlit API cache/refresh mechanism, with a local CSV fallback.
 
-## Data Sources
+### Dashboard screenshots
 
-Hero performance statistics are retrieved from the community-maintained Deadlock API.
+*These screenshots illustrate the dashboard layout; values may differ from refreshed API results.*
 
-**Hero statistics endpoint:**
+**Overview and hero statistics**
 
-`https://api.deadlock-api.com/v1/analytics/hero-stats`
+![Dashboard overview and hero statistics](assets/dashboard-overview.png)
 
-**Hero metadata endpoint:**
+**Individual hero analysis and win-rate rankings**
 
-`https://api.deadlock-api.com/v1/assets/heroes`
+![Individual hero analysis and win-rate rankings](assets/hero-analysis-winrate-rankings.png)
 
-The statistics endpoint provides aggregated hero performance records, while the metadata endpoint supplies hero names and identifiers.
+**Correlation analysis**
 
-The analysed dataset contains 44 heroes, using a snapshot collected on 1 November 2026.
+![Hero performance correlation analysis](assets/hero-correlation-analysis.png)
 
-**Important:** The data represents aggregated API statistics rather than individual match records. Results may depend on the API's aggregation period, included matches, game modes, and patches.
+**Hero performance explorer**
 
-## Data Pipeline
+![Interactive hero performance explorer](assets/hero-performance-explorer.png)
 
-The project uses an automated three-stage data pipeline.
+## Technology stack
 
-**Stage 1 — Data Extraction**
+| Technology | Role |
+| --- | --- |
+| Python 3.12 | Data pipeline and application logic |
+| Pandas | Validation, transformation and analysis |
+| Requests | Deadlock REST API access |
+| Plotly | Interactive charts |
+| Streamlit | Web dashboard |
+| pytest | Automated validation tests |
+| GitHub Actions | Scheduled data ingestion and tests |
+| Git / GitHub | Version control and project hosting |
+| VS Code | Local development |
 
-`src/api_client.py`
+## Data sources and pipeline
 
-- Requests hero performance statistics from the API.
-- Retrieves records in JSON format.
-- Saves a timestamped raw data snapshot locally.
+The project uses the community-maintained Deadlock API:
 
-**Stage 2 — Data Processing**
+- **Hero statistics:** `https://api.deadlock-api.com/v1/analytics/hero-stats`
+- **Hero metadata:** `https://api.deadlock-api.com/v1/assets/heroes`
 
-`src/data_processing.py`
+The local and GitHub Actions pipeline consists of:
 
-- Loads the most recent raw JSON snapshot.
-- Validates the dataset.
-- Calculates hero performance metrics.
-- Exports a processed CSV dataset.
+1. **Extract** — `src/api_client.py` requests aggregated hero statistics and stores a timestamped raw JSON snapshot.
+2. **Transform and validate** — `src/data_processing.py` checks hero identifiers, positive match counts and consistency between wins, losses and matches; it calculates derived metrics and exports a CSV.
+3. **Enrich** — `src/add_hero_names.py` joins hero metadata by ID and checks for unmatched names.
+4. **Orchestrate** — `src/run_pipeline.py` runs the three stages in sequence.
 
-**Stage 3 — Hero Metadata Integration**
+### Derived metrics
 
-`src/add_hero_names.py`
+| Metric | Formula |
+| --- | --- |
+| Win rate (%) | `wins / matches * 100` |
+| Average kills | `total_kills / matches` |
+| Average deaths | `total_deaths / matches` |
+| Average assists | `total_assists / matches` |
+| Average player damage | `total_player_damage / matches` |
+| Appearance share (%) | `hero matches / sum of all hero match counts * 100` |
 
-- Retrieves hero metadata.
-- Matches hero identifiers to hero names.
-- Checks for missing or unmatched heroes.
-- Updates the processed dataset.
+**Appearance share is not a true match-level pick rate.** It represents the relative distribution of hero match counts in this aggregated dataset.
 
-The complete workflow is coordinated by `src/run_pipeline.py`.
+### Automated refresh
 
-### Calculated Metrics
+The workflow `.github/workflows/update-data.yml` runs on a six-hour UTC schedule (nominally **00:17, 06:17, 12:17 and 18:17 UTC**) and can also be started manually. It:
 
-| Metric | Calculation |
-|---|---|
-| Win rate (%) | Wins / Matches × 100 |
-| Average kills | Total kills / Matches |
-| Average deaths | Total deaths / Matches |
-| Average assists | Total assists / Matches |
-| Average player damage | Total player damage / Matches |
-| Appearance share (%) | Hero matches / Sum of all hero matches × 100 |
+1. Installs dependencies on Python 3.12.
+2. Runs the extraction, transformation and enrichment pipeline.
+3. Runs the automated test suite.
+4. Commits `data/processed/hero_performance.csv` to `main` **only if the file changed**.
 
-Appearance share is a relative measure of the distribution of hero match counts within the dataset. It is **not equivalent to a true match-level pick rate**.
+GitHub Actions schedules can be delayed. The deployed Streamlit app separately requests current API data on a six-hour cache/refresh cycle; it does **not** need a public URL to this private repository. Its **Last Updated** timestamp indicates when data was retrieved, not when the underlying gameplay statistics last changed. If the API is unavailable, the app can fall back to its bundled processed CSV.
 
-## Exploratory Data Analysis
+## Exploratory findings
 
-The project uses descriptive statistics, rankings, interactive scatter plots, and Pearson correlation coefficients to examine hero-level performance.
+The following results refer specifically to the **1 November 2026 snapshot (44 heroes)**. They are historical observations, **not** live rankings.
 
-### Highest Win Rates
+### Highest recorded win rates
 
-Based on the 1 November 2026 snapshot:
-
-| Rank | Hero | Win Rate |
-|---|---|---|
+| Rank | Hero | Win rate |
+| ---: | --- | ---: |
 | 1 | Graves | 57.29% |
 | 2 | Rat King | 56.75% |
 | 3 | Paige | 56.03% |
 | 4 | Seven | 54.81% |
 | 5 | Victor | 54.09% |
 
-These rankings describe the analysed API snapshot and should not be interpreted as definitive rankings across all skill levels, patches, or competitive environments.
+### Associations with win rate
 
-### Popularity and Win Rate
+- **Recorded hero matches vs. win rate:** Pearson *r* ≈ **+0.479**, a moderate positive linear association in this snapshot.
+- **Average kills vs. win rate:** Pearson *r* ≈ **−0.064**, little linear association in this snapshot.
 
-The correlation between recorded hero matches and win rate was approximately **+0.479**, indicating a moderate positive linear association in the analysed snapshot.
+These are descriptive, hero-level correlations. They do not establish causation or account for player skill, team composition, patches or other confounders.
 
-This does not establish that popularity causes higher win rates.
+### Limitations
 
-### Average Kills and Win Rate
+- Data are aggregated by hero, not individual match or player.
+- The API's aggregation window, game modes and inclusion rules may affect comparisons.
+- Hero match counts do not equal the number of unique matches played.
+- Balance updates and changing player behaviour can alter rankings over time.
+- Correlations are descriptive and cannot isolate causal effects.
+- The dashboard's retrieval timestamp is not a guarantee of source-data freshness.
 
-The correlation between average kills and win rate was approximately **−0.064**, suggesting little linear association between these two hero-level measures.
+## Run locally
 
-Higher average kills alone do not necessarily correspond to higher hero win rates in this dataset.
-
-### Analytical Limitations
-
-- The dataset contains aggregated hero-level statistics rather than individual player or match observations.
-- Correlations are descriptive and do not establish causation.
-- Results may be affected by player skill, team composition, balance patches, and selection effects.
-- Match counts are not equivalent to the number of unique matches in the game.
-- Win-rate rankings can change as additional data becomes available.
-
-## Interactive Dashboard
-
-### Dashboard Preview
-
-Explore the interactive Streamlit dashboard through the screenshots below.
-
-#### 1. Dashboard Overview & Hero Statistics
-
-Overview of 44 Deadlock heroes, including win rates, recorded matches, and average performance metrics.
-
-![Dashboard Overview and Hero Statistics](assets/dashboard-overview.png)
-
-#### 2. Individual Hero Analysis & Win Rate Rankings
-
-Compare individual hero statistics and explore the top 10 heroes ranked by win rate.
-
-![Individual Hero Analysis and Win Rate Rankings](assets/hero-analysis-winrate-rankings.png)
-
-#### 3. Hero Performance Correlation Analysis
-
-Explore relationships between hero performance metrics and win rates using interactive scatter plots and Pearson correlation coefficients.
-
-![Hero Performance Correlation Analysis](assets/hero-correlation-analysis.png)
-
-#### 4. Interactive Hero Performance Explorer
-
-Filter heroes by minimum win rate and recorded match count, then export the filtered dataset as a CSV file.
-
-![Interactive Hero Performance Explorer](assets/hero-performance-explorer.png)
-
-The Streamlit dashboard provides:
-
-- A summary of hero performance statistics.
-- An interactive hero performance table.
-- Individual hero selection and metric comparisons.
-- A top-10 win-rate chart.
-- Interactive scatter plots exploring relationships between performance metrics.
-- Filters for minimum win rate and recorded match count.
-- CSV export of filtered results.
-
-The dashboard is implemented in `app.py` using Streamlit and Plotly.
-
-## Getting Started
-
-### Prerequisites
-
-- Python 3.12 or a compatible Python version.
-- Git.
-- Internet access when retrieving fresh API data.
-
-### 1. Clone the Repository
+**Prerequisites:** Python 3.12, Git and an internet connection for fresh API requests.
 
 ```bash
+# Clone requires authorization while the repository is private
 git clone https://github.com/naisyap/deadlock-hero-analytics.git
 cd deadlock-hero-analytics
-```
 
-*Note: The repository is currently private, so cloning requires authorised access.*
-
-### 2. Create a Virtual Environment
-
-On macOS or Linux:
-
-```bash
+# Create and activate a virtual environment
 python3 -m venv .venv
 source .venv/bin/activate
-```
 
-On Windows:
-
-```powershell
-python -m venv .venv
-.venv\Scripts\activate
-```
-
-### 3. Install Dependencies
-
-```bash
+# Install packages
 python -m pip install -r requirements.txt
-```
 
-### 4. Run the Data Pipeline
-
-```bash
+# Optional: refresh the local processed CSV
 python src/run_pipeline.py
-```
 
-This retrieves current API data, processes hero performance metrics, and integrates hero names.
-
-Running the pipeline updates the processed CSV and saves a new raw snapshot locally.
-
-### 5. Launch the Dashboard
-
-```bash
+# Launch the dashboard
 python -m streamlit run app.py
 ```
 
-Streamlit will provide a local URL, typically:
+On Windows, activate the environment using `.venv\Scripts\activate` instead. Streamlit normally serves the local dashboard at `http://localhost:8501`.
 
-`http://localhost:8501`
-
-### 6. Run Automated Tests
+### Run tests
 
 ```bash
 python -m pytest tests/ -v
 ```
 
-The project currently contains nine automated data validation tests, covering:
+The project has **nine data validation tests**, covering dataset completeness, required columns, unique IDs, hero names, positive match counts, win/loss consistency, valid win rates and selected metric calculations. All nine passed in the local verification recorded on 1 November 2026.
 
-- Non-empty datasets.
-- Required columns.
-- Unique hero identifiers.
-- Complete hero names.
-- Positive match counts.
-- Match totals consistent with wins and losses.
-- Valid win-rate ranges.
-- Correct win-rate calculations.
-- Correct average-kills calculations.
-
-All nine tests passed during local verification on 1 November 2026.
-
-## Project Structure
+## Project structure
 
 ```text
 deadlock-hero-analytics/
+├── .github/
+│   └── workflows/
+│       └── update-data.yml
+├── .streamlit/
+│   └── config.toml
 ├── analysis/
 │   ├── hero_analysis.py
 │   ├── win_rate_chart.py
 │   ├── popularity_vs_winrate.py
 │   └── kills_vs_winrate.py
+├── assets/
+│   ├── dashboard-overview.png
+│   ├── hero-analysis-winrate-rankings.png
+│   ├── hero-correlation-analysis.png
+│   └── hero-performance-explorer.png
 ├── data/
 │   ├── processed/
 │   │   └── hero_performance.csv
-│   └── raw/                    # Local API snapshots
+│   └── raw/                    # Local snapshots; ignored by Git
 ├── docs/
 │   └── project_brief.md
 ├── outputs/
-│   └── figures/                # Generated HTML charts
+│   └── figures/               # Generated figures; ignored by Git
 ├── src/
 │   ├── api_client.py
 │   ├── inspect_data.py
@@ -284,21 +205,14 @@ deadlock-hero-analytics/
 └── README.md
 ```
 
-Raw API snapshots and generated chart files are excluded from version control. The processed dataset is retained to support local dashboard use.
+## Future improvements
 
-## Future Improvements
-
-Potential enhancements include:
-
-- Tracking hero performance across multiple dates and balance patches.
-- Comparing trends between historical snapshots.
-- Adding more detailed data-quality reporting.
-- Implementing automated pipeline execution.
-- Expanding tests to cover API failures and data transformation edge cases.
-- Deploying the dashboard for public access.
+- Record historical snapshots to analyse hero trends across dates and balance patches.
+- Add API-failure and transformation-edge-case tests.
+- Expand data-quality reporting and monitoring.
+- Add contextual comparisons across game versions or other supported API dimensions.
+- Verify the deployed dashboard's accessibility, theme and scheduled refresh behaviour.
 
 ## Disclaimer
 
-This is an independent educational and portfolio project. It is not affiliated with, endorsed by, or sponsored by Valve.
-
-*Deadlock* and associated game assets belong to their respective rights holders.
+This is an independent educational and portfolio project, not affiliated with, endorsed by or sponsored by Valve. *Deadlock* and associated game assets belong to their respective rights holders.
