@@ -1,20 +1,14 @@
 
-name: Update Deadlock Hero Data
+name: Test Deadlock Hero Data Pipeline
 
 on:
-  schedule:
-    - cron: "0 */6 * * *"
   workflow_dispatch:
 
 permissions:
-  contents: write
-
-concurrency:
-  group: deadlock-data-refresh
-  cancel-in-progress: false
+  contents: read
 
 jobs:
-  update-data:
+  test-data-pipeline:
     runs-on: ubuntu-latest
 
     steps:
@@ -36,16 +30,5 @@ jobs:
       - name: Validate processed data
         run: python -m pytest tests/ -v
 
-      - name: Commit updated dataset
-        run: |
-          if git diff --quiet -- data/processed/hero_performance.csv; then
-            echo "No dataset changes detected."
-            exit 0
-          fi
-
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-
-          git add data/processed/hero_performance.csv
-          git commit -m "Update Deadlock hero statistics"
-          git push
+      - name: Confirm pipeline completed
+        run: echo "Deadlock API pipeline and automated tests completed successfully."
