@@ -134,6 +134,34 @@ Higher average kills alone do not necessarily correspond to higher hero win rate
 
 ## Interactive Dashboard
 
+### Dashboard Preview
+
+Explore the interactive Streamlit dashboard through the screenshots below.
+
+#### 1. Dashboard Overview & Hero Statistics
+
+Overview of 44 Deadlock heroes, including win rates, recorded matches, and average performance metrics.
+
+![Dashboard Overview and Hero Statistics](assets/dashboard-overview.png)
+
+#### 2. Individual Hero Analysis & Win Rate Rankings
+
+Compare individual hero statistics and explore the top 10 heroes ranked by win rate.
+
+![Individual Hero Analysis and Win Rate Rankings](assets/hero-analysis-winrate-rankings.png)
+
+#### 3. Hero Performance Correlation Analysis
+
+Explore relationships between hero performance metrics and win rates using interactive scatter plots and Pearson correlation coefficients.
+
+![Hero Performance Correlation Analysis](assets/hero-correlation-analysis.png)
+
+#### 4. Interactive Hero Performance Explorer
+
+Filter heroes by minimum win rate and recorded match count, then export the filtered dataset as a CSV file.
+
+![Interactive Hero Performance Explorer](assets/hero-performance-explorer.png)
+
 The Streamlit dashboard provides:
 
 - A summary of hero performance statistics.
