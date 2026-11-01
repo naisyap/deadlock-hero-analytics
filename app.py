@@ -1,5 +1,9 @@
 
 from pathlib import Path
+from datetime import datetime, timezone
+import time
+import requests
+import numpy as np
 
 import pandas as pd
 import plotly.express as px
@@ -112,78 +116,111 @@ BASE_DIR = Path(__file__).resolve().parent
 DATA_PATH = BASE_DIR / "data" / "processed" / "hero_performance.csv"
 
 
-@st.cache_data
-def load_data(file_path: str, modified_time: float) -> pd.DataFrame:
-    # modified_time makes Streamlit reload the CSV when it changes.
-    df = pd.read_csv(file_path)
+REFRESH_SECONDS = 6 * 60 * 60
+STATS_URL = "https://api.deadlock-api.com/v1/analytics/hero-stats"
+HEROES_URL = "https://api.deadlock-api.com/v1/assets/heroes"
+REQUIRED_COLUMNS = [
+    "hero_id", "hero_name", "matches", "wins", "losses", "win_rate",
+    "avg_kills", "avg_deaths", "avg_assists", "avg_player_damage",
+]
 
-    required_columns = [
-        "hero_id",
-        "hero_name",
-        "matches",
-        "wins",
-        "losses",
-        "win_rate",
-        "avg_kills",
-        "avg_deaths",
-        "avg_assists",
-        "avg_player_damage",
-    ]
 
-    missing = [
-        column
-        for column in required_columns
-        if column not in df.columns
-    ]
-
+def validate_dashboard_data(df):
+    """Reject incomplete or inconsistent snapshots before displaying them."""
+    missing = set(REQUIRED_COLUMNS) - set(df.columns)
     if missing:
-        raise ValueError(
-            f"Missing required CSV columns: {', '.join(missing)}"
-        )
-
-    numeric_columns = [
-        "matches",
-        "wins",
-        "losses",
-        "win_rate",
-        "avg_kills",
-        "avg_deaths",
-        "avg_assists",
-        "avg_player_damage",
-    ]
-
-    for column in numeric_columns:
-        df[column] = pd.to_numeric(
-            df[column],
-            errors="coerce",
-        )
-
-    df["hero_name"] = df["hero_name"].fillna("Unknown Hero")
-    df = df.dropna(subset=["matches", "win_rate"])
-
+        raise ValueError(f"Missing required columns: {', '.join(sorted(missing))}")
+    if df.empty or df["hero_id"].duplicated().any():
+        raise ValueError("Hero data is empty or contains duplicate IDs.")
+    for column in REQUIRED_COLUMNS:
+        if column not in ("hero_id", "hero_name"):
+            df[column] = pd.to_numeric(df[column], errors="raise")
+    if df[REQUIRED_COLUMNS].isna().any().any() or not np.isfinite(
+        df[[c for c in REQUIRED_COLUMNS if c not in ("hero_id", "hero_name")]].to_numpy(dtype=float)
+    ).all():
+        raise ValueError("Hero data contains missing required values.")
+    if (df["matches"] <= 0).any() or not (
+        df["wins"] + df["losses"] == df["matches"]
+    ).all():
+        raise ValueError("Invalid hero match totals.")
     return df
 
 
-if not DATA_PATH.exists():
-    st.error(
-        "The processed hero dataset was not found. "
-        "Run the data pipeline before launching the dashboard."
+@st.cache_data(ttl=REFRESH_SECONDS, show_spinner="Fetching Deadlock statistics…")
+def fetch_live_data():
+    """Reproduce the existing pipeline calculations without writing partial files."""
+    stats_response = requests.get(STATS_URL, timeout=30)
+    stats_response.raise_for_status()
+    stats = stats_response.json()
+    if not isinstance(stats, list) or not stats:
+        raise ValueError("Unexpected hero statistics response.")
+
+    heroes_response = requests.get(HEROES_URL, timeout=30)
+    heroes_response.raise_for_status()
+    heroes = heroes_response.json()
+    if not isinstance(heroes, list) or not heroes:
+        raise ValueError("Unexpected hero names response.")
+
+    df = pd.DataFrame(stats)
+    hero_df = pd.DataFrame(heroes)[["id", "name"]].rename(
+        columns={"id": "hero_id", "name": "hero_name"}
     )
-    st.code("python src/run_pipeline.py")
-    st.stop()
+    if hero_df["hero_id"].duplicated().any():
+        raise ValueError("Duplicate IDs in hero names response.")
+
+    df["win_rate"] = (df["wins"] / df["matches"]) * 100
+    df["avg_kills"] = df["total_kills"] / df["matches"]
+    df["avg_deaths"] = df["total_deaths"] / df["matches"]
+    df["avg_assists"] = df["total_assists"] / df["matches"]
+    df["avg_player_damage"] = df["total_player_damage"] / df["matches"]
+    df["appearance_share"] = df["matches"] / df["matches"].sum() * 100
+    metrics = ["win_rate", "avg_kills", "avg_deaths", "avg_assists",
+               "avg_player_damage", "appearance_share"]
+    df[metrics] = df[metrics].round(2)
+    df = df.merge(hero_df, on="hero_id", how="left", validate="many_to_one")
+    df = validate_dashboard_data(df)
+    fetched_at = datetime.now(timezone.utc).isoformat()
+    return df, fetched_at
+
+
+@st.cache_data(show_spinner=False)
+def load_local_snapshot(path, modified_time):
+    return validate_dashboard_data(pd.read_csv(path))
+
+
+# The six-hour interval reruns the entire dashboard for an open browser session.
+# Streamlit also refreshes cached API data on the next visit after the TTL expires.
+if "dashboard_refresh_started" not in st.session_state:
+    st.session_state.dashboard_refresh_started = time.monotonic()
+
+
+@st.fragment(run_every="6h")
+def schedule_dashboard_refresh():
+    if time.monotonic() - st.session_state.dashboard_refresh_started >= REFRESH_SECONDS:
+        st.session_state.dashboard_refresh_started = time.monotonic()
+        st.rerun(scope="app")
+
+
+schedule_dashboard_refresh()
 
 try:
-    data = load_data(
-        str(DATA_PATH),
-        DATA_PATH.stat().st_mtime,
-    )
-except (ValueError, OSError, pd.errors.ParserError) as error:
-    st.error(f"Unable to load hero statistics: {error}")
-    st.stop()
-
-if data.empty:
-    st.warning("The processed dataset contains no usable hero records.")
-    st.stop()
+    data, fetched_at = fetch_live_data()
+    data_source = "Live Deadlock API"
+    last_updated = pd.Timestamp(fetched_at).strftime("%d %b %Y, %H:%M UTC")
+except (requests.RequestException, ValueError, KeyError, TypeError, OSError) as error:
+    if not DATA_PATH.exists():
+        st.error(f"API refresh failed and no saved CSV is available: {error}")
+        st.stop()
+    try:
+        data = load_local_snapshot(str(DATA_PATH), DATA_PATH.stat().st_mtime)
+    except (ValueError, OSError, pd.errors.ParserError) as csv_error:
+        st.error(f"Neither the API nor saved CSV could be loaded: {csv_error}")
+        st.stop()
+    data_source = "Saved CSV (API unavailable)"
+    last_updated = "Snapshot file modified: " + pd.Timestamp(
+        DATA_PATH.stat().st_mtime, unit="s", tz="UTC"
+    ).strftime("%d %b %Y, %H:%M UTC")
+    st.warning("Live data is temporarily unavailable. Displaying the saved CSV snapshot.")
 
 
 # ============================================================
@@ -291,21 +328,10 @@ with st.sidebar:
     st.divider()
 
     st.markdown("### Data Source")
-    st.caption("Deadlock API — aggregated hero statistics")
-
-    st.markdown("### Data Snapshot")
-    st.caption(
-        "Local CSV modified: "
-        + pd.Timestamp(
-            DATA_PATH.stat().st_mtime,
-            unit="s",
-        ).strftime("%d %b %Y, %H:%M")
-    )
-
-    st.info(
-        "Automatic six-hour API refresh is not enabled yet. "
-        "The dashboard currently reads the processed CSV."
-    )
+    st.caption(data_source)
+    st.markdown("### Last Updated")
+    st.caption(last_updated)
+    st.caption("Live API results are cached for six hours. Open dashboards refresh every six hours.")
 
 
 # ============================================================
@@ -647,5 +673,5 @@ st.caption(
 st.caption(
     "Data source: Deadlock API. "
     "Statistics are aggregated at hero level and "
-    "reflect the latest locally processed snapshot."
+    "reflect the latest available validated snapshot."
 )
