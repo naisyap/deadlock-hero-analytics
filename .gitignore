@@ -218,3 +218,15 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# macOS system files
+.DS_Store
+
+# Generated analysis charts
+outputs/figures/
+
+# Raw API responses
+data/raw/
+
+# Local dataset backups
+data/backups/
