@@ -710,12 +710,6 @@ else:
         "a Pearson correlation."
     )
 
-st.caption(
-    "Correlation describes a statistical association "
-    "between aggregated hero-level variables. "
-    "It does not establish causation."
-)
-
 st.divider()
 
 
