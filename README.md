@@ -2,7 +2,7 @@
 
 **An end-to-end Python analytics project examining hero performance, gameplay statistics and game balance in Valve's *Deadlock*.**
 
-[**Live Streamlit dashboard**](https://deadlock-hero-analytics-np.streamlit.app/) · **Deployment undergoing verification** (the new Cloud deployment was still starting when this README was prepared)
+[**Launch the live dashboard**](https://deadlock-hero-analytics-np.streamlit.app/) · Deployed on Streamlit Community Cloud
 
 This portfolio project combines REST API ingestion, data validation, feature engineering, exploratory analysis, automated tests, scheduled GitHub Actions updates and an interactive Streamlit dashboard.
 
@@ -20,11 +20,12 @@ The dashboard makes aggregated hero-level statistics easier to explore and compa
 
 ## Dashboard features
 
-- **Performance overview:** hero count, mean hero win rate and win-rate range.
+- **Performance overview:** hero count, unweighted mean hero win rate, highest and lowest win rates, and the corresponding hero names.
+- **Dynamic key findings:** automatically identify the highest-win-rate hero, the hero with the most recorded appearances, and the win-rate spread in percentage points.
 - **Hero rankings:** sortable table of matches, wins, losses and combat averages.
-- **Individual hero analysis:** select a hero to inspect its performance metrics.
+- **Individual hero analysis:** select a hero to view their portrait, win-rate rank among the analysed heroes, and combat metrics.
 - **Top 10 win rates:** interactive horizontal bar chart.
-- **Correlation explorer:** compare win rate against match volume, kills, deaths, assists or damage, with Pearson's *r*.
+- **Correlation explorer:** compare win rate against match volume, kills, deaths, assists or damage, with Pearson's *r*, sample size and an automatically generated interpretation of association strength and direction.
 - **Interactive filters:** set minimum win rate and match count, then download filtered results as CSV.
 - **Deadlock-inspired design:** charcoal background, rust-red accents and ivory text.
 - **Data refresh:** a six-hour scheduled GitHub Actions pipeline and a separate six-hour Streamlit API cache/refresh mechanism, with a local CSV fallback.
@@ -33,15 +34,15 @@ The dashboard makes aggregated hero-level statistics easier to explore and compa
 
 *These screenshots illustrate the dashboard layout; values may differ from refreshed API results.*
 
-**Overview and hero statistics**
+**Performance overview, dynamic key findings and hero rankings**
 
 ![Dashboard overview and hero statistics](assets/dashboard-overview.png)
 
-**Individual hero analysis and win-rate rankings**
+**Individual hero portrait, statistics and top 10 win-rate chart**
 
 ![Individual hero analysis and win-rate rankings](assets/hero-analysis-winrate-rankings.png)
 
-**Correlation analysis**
+**Correlation analysis with statistical interpretation**
 
 ![Hero performance correlation analysis](assets/hero-correlation-analysis.png)
 
@@ -103,7 +104,7 @@ GitHub Actions schedules can be delayed. The deployed Streamlit app separately r
 
 ## Exploratory findings
 
-The following results refer specifically to the **1 November 2026 snapshot (44 heroes)**. They are historical observations, **not** live rankings.
+The following results refer specifically to the **1 November 2026 snapshot (44 heroes)**. They are historical observations, **not** live rankings. The live dashboard recalculates its Key Findings and correlation interpretations from the data currently loaded; values may differ from the table below.
 
 ### Highest recorded win rates
 
@@ -211,7 +212,7 @@ deadlock-hero-analytics/
 - Add API-failure and transformation-edge-case tests.
 - Expand data-quality reporting and monitoring.
 - Add contextual comparisons across game versions or other supported API dimensions.
-- Verify the deployed dashboard's accessibility, theme and scheduled refresh behaviour.
+- Conduct formal accessibility and mobile usability checks, and monitor the reliability of deployed refresh behaviour.
 
 ## Disclaimer
 
