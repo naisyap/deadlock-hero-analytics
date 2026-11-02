@@ -162,9 +162,29 @@ def fetch_live_data():
         raise ValueError("Unexpected hero names response.")
 
     df = pd.DataFrame(stats)
-    hero_df = pd.DataFrame(heroes)[["id", "name"]].rename(
-        columns={"id": "hero_id", "name": "hero_name"}
-    )
+    # Hero images are nested under images.icon_hero_card in the Deadlock API.
+    # Keep portraits optional so missing artwork never blocks the analytics.
+    hero_rows = []
+    for entry in heroes:
+        if not isinstance(entry, dict):
+            continue
+        images = entry.get("images") or {}
+        if not isinstance(images, dict):
+            images = {}
+        portrait = next(
+            (images[key] for key in ("icon_hero_card", "icon_hero_card_webp", "top_bar_vertical_image", "icon_image_small")
+             if isinstance(images.get(key), str)
+             and images[key].startswith("https://")),
+            None,
+        )
+        hero_rows.append({
+            "hero_id": entry.get("id"),
+            "hero_name": entry.get("name"),
+            "hero_portrait": portrait,
+        })
+    hero_df = pd.DataFrame(hero_rows)
+    if hero_df.empty or not {"hero_id", "hero_name"}.issubset(hero_df.columns):
+        raise ValueError("Hero metadata does not contain valid identifiers and names.")
     if hero_df["hero_id"].duplicated().any():
         raise ValueError("Duplicate IDs in hero names response.")
 
@@ -363,6 +383,8 @@ total_heroes = len(data)
 average_win_rate = data["win_rate"].mean()
 highest_win_rate = data["win_rate"].max()
 lowest_win_rate = data["win_rate"].min()
+highest_hero = data.loc[data["win_rate"].idxmax(), "hero_name"]
+lowest_hero = data.loc[data["win_rate"].idxmin(), "hero_name"]
 
 col1, col2, col3, col4 = st.columns(4)
 
@@ -373,10 +395,12 @@ with col2:
     st.metric("Average Hero Win Rate", f"{average_win_rate:.2f}%")
 
 with col3:
-    st.metric("Highest Win Rate", f"{highest_win_rate:.2f}%")
+    st.metric("Highest Win Rate", f"{highest_win_rate:.2f}%", help=f"Hero: {highest_hero}")
+    st.caption(f"Hero: **{highest_hero}**")
 
 with col4:
-    st.metric("Lowest Win Rate", f"{lowest_win_rate:.2f}%")
+    st.metric("Lowest Win Rate", f"{lowest_win_rate:.2f}%", help=f"Hero: {lowest_hero}")
+    st.caption(f"Hero: **{lowest_hero}**")
 
 st.caption(
     "Average hero win rate is the unweighted mean across heroes."
@@ -425,7 +449,21 @@ hero = data.loc[
     data["hero_name"] == selected_hero
 ].iloc[0]
 
-st.subheader(selected_hero)
+# Competition ranking: tied win rates share the same rank.
+hero_rank = int(data["win_rate"].rank(method="min", ascending=False).loc[hero.name])
+portrait_url = hero.get("hero_portrait")
+portrait_available = isinstance(portrait_url, str) and portrait_url.startswith("https://")
+
+if portrait_available:
+    portrait_col, details_col = st.columns([1, 4], vertical_alignment="center")
+    with portrait_col:
+        st.image(portrait_url, width=175)
+    with details_col:
+        st.subheader(selected_hero)
+        st.caption(f"Win-rate rank: #{hero_rank} of {total_heroes} heroes")
+else:
+    st.subheader(selected_hero)
+    st.caption(f"Win-rate rank: #{hero_rank} of {total_heroes} heroes")
 
 hero_col1, hero_col2, hero_col3, hero_col4 = st.columns(4)
 
