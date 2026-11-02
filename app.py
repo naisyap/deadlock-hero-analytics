@@ -410,6 +410,41 @@ st.divider()
 
 
 # ============================================================
+# 7A. DYNAMIC KEY FINDINGS
+# ============================================================
+
+st.header("Key Findings")
+st.caption("Automatically calculated from the currently displayed hero dataset.")
+
+most_played = data.loc[data["matches"].idxmax()]
+least_played = data.loc[data["matches"].idxmin()]
+
+insight_col1, insight_col2, insight_col3 = st.columns(3)
+with insight_col1:
+    st.markdown("**Highest Win Rate**")
+    st.write(f"{highest_hero} leads with a {highest_win_rate:.2f}% win rate.")
+with insight_col2:
+    st.markdown("**Most Recorded Hero Matches**")
+    st.write(
+        f"{most_played['hero_name']} has "
+        f"{int(most_played['matches']):,} recorded hero matches."
+    )
+with insight_col3:
+    st.markdown("**Win-Rate Spread**")
+    st.write(
+        f"The gap between the highest and lowest hero win rates is "
+        f"{highest_win_rate - lowest_win_rate:.2f} percentage points."
+    )
+
+st.caption(
+    "These are descriptive hero-level findings, not causal or skill-adjusted estimates. "
+    "Hero match counts do not represent the number of unique game matches."
+)
+
+st.divider()
+
+
+# ============================================================
 # 8. HERO PERFORMANCE TABLE
 # ============================================================
 
@@ -622,6 +657,52 @@ if (
     st.metric(
         "Pearson Correlation (r)",
         f"{correlation:+.3f}",
+    )
+
+    # Interpret the selected hero-level Pearson correlation dynamically.
+    strength = abs(correlation)
+    if strength < 0.20:
+        relationship = "very weak"
+    elif strength < 0.40:
+        relationship = "weak"
+    elif strength < 0.60:
+        relationship = "moderate"
+    elif strength < 0.80:
+        relationship = "strong"
+    else:
+        relationship = "very strong"
+
+    if correlation > 0:
+        direction = "positive"
+        explanation = (
+            "Heroes with higher values of this metric tend to have higher "
+            "win rates in this snapshot."
+        )
+    elif correlation < 0:
+        direction = "negative"
+        explanation = (
+            "Heroes with higher values of this metric tend to have lower "
+            "win rates in this snapshot."
+        )
+    else:
+        direction = "zero"
+        explanation = "No linear association is observed in this snapshot."
+
+    if strength < 0.20:
+        explanation = (
+            "There is little evidence of a linear relationship "
+            "between these hero-level measures in this snapshot."
+        )
+
+    st.info(
+        f"**Statistical interpretation:** A {relationship} {direction} "
+        f"linear association between {selected_metric.lower()} and "
+        f"hero win rate (Pearson r = {correlation:+.3f}; "
+        f"n = {len(scatter_data)} heroes). {explanation}"
+    )
+    st.caption(
+        "Strength labels use descriptive thresholds (0.20, 0.40, 0.60, 0.80), "
+        "not significance tests. Correlation does not imply causation."
     )
 else:
     st.info(
