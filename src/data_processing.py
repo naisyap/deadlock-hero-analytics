@@ -28,7 +28,7 @@ def process_hero_data():
     if not (df["wins"] + df["losses"] == df["matches"]).all():
         raise ValueError("Wins and losses do not match total matches.")
 
-    # Calculate hero performance metrics
+    # Rates use aggregated hero appearances as the denominator.
     df["win_rate"] = (df["wins"] / df["matches"]) * 100
 
     df["avg_kills"] = df["total_kills"] / df["matches"]

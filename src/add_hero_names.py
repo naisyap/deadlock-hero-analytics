@@ -25,7 +25,7 @@ def add_hero_names():
     # Keep only the fields we need
     hero_df = pd.DataFrame(heroes)[["id", "name"]]
 
-    # Rename columns to make the merge easier
+    # Align the metadata identifier with the performance dataset.
     hero_df = hero_df.rename(
         columns={"id": "hero_id", "name": "hero_name"}
     )
